@@ -38,6 +38,11 @@ public class Robot extends IterativeRobot {
 	// Shooter Hold Speed Steady Button
 	private static boolean isShooterHoldSteady;
 
+	// Shooter Additional Velocity After Shooting (Ramp Back Up To Speed)
+	private static int shooterAdditionalVelocity;
+	private static int shooterAdditionalVelocityCounter;
+	private static double shooterAdditionalVelocityMultiplier;
+	
 	// Default Shooter Speed 0 - 100%
 	private static double DEFAULT_MIN_SHOOTER_SPEED;
 
@@ -51,6 +56,8 @@ public class Robot extends IterativeRobot {
 	// Center of Image & Thread Lock object to used when obtaining the image
 	private double centerX = 0.0;
 	private final Object imgLock = new Object();
+	
+	private static final boolean ENABLE_VISION = false;
 
 	SendableChooser<Command> autonomousRoutinePicker = new SendableChooser<>();
 
@@ -73,7 +80,13 @@ public class Robot extends IterativeRobot {
 		DEFAULT_MIN_SHOOTER_SPEED = 0.55;
 		isShooterHoldSteady = false;
 
+		// Shooter Additional Velocity After Firing
+		shooterAdditionalVelocity = 30;
+		shooterAdditionalVelocityCounter = 0;
+		shooterAdditionalVelocityMultiplier = 0.3;
+		
 		// Vision Code
+		if (ENABLE_VISION) {
 		IMG_WIDTH = 640;
 		IMG_HEIGHT = 480;
 
@@ -130,6 +143,7 @@ public class Robot extends IterativeRobot {
 			cvOutput.putFrame(processedImage);
 		});
 		visionThread.start();
+		}
 	}
 
 	/**
@@ -204,17 +218,17 @@ public class Robot extends IterativeRobot {
 
 		// ----- Drive Code -----
 
+		// ~~ B-Button Drive ~~
 		// B button pressed & Right Trigger is beyond Halfway pressed drive in
 		// reverse
 		if (RobotMap.xboxController.getRawButton(2) && RobotMap.xboxController.getRawAxis(3) > 0.5)
 			RobotMap.robotDrive.tankDrive(1.0, 1.0);
-
+		
 		// Drive full Speed Strait Forward
 		else if (RobotMap.xboxController.getRawButton(2)) // B button pressed
 			RobotMap.robotDrive.tankDrive(-1.0, -1.0);
 
-		// D-Pad Drive
-		
+		// ~~ D-Pad Drive ~~
 		// Drives Forward at Default D-Pad Drive Speed speed forward if the D-Pad is pressed Up ^
 		else if (RobotMap.xboxController.getPOV() == 0)
 			RobotMap.robotDrive.tankDrive(-DEFAULT_DPAD_SPEED, -DEFAULT_DPAD_SPEED);
@@ -252,7 +266,7 @@ public class Robot extends IterativeRobot {
 		else if (RobotMap.xboxController.getPOV() == 270)
 			RobotMap.robotDrive.tankDrive(DEFAULT_DPAD_SPEED / 4, -DEFAULT_DPAD_SPEED / 4);
 
-		// Drive With Triggers
+		// ~~ Drive With Triggers ~~
 		// Left Trigger controls left wheels, Right Trigger controls right
 		// wheels
 		// else if (RobotMap.xboxController.getRawAxis(2) != 0 ||
@@ -266,7 +280,7 @@ public class Robot extends IterativeRobot {
 		// RobotMap.robotDrive.tankDrive(-RobotMap.xboxController.getRawAxis(3),
 		// -RobotMap.xboxController.getRawAxis(2));
 
-		// Drive With Bumbers
+		// ~~ Drive With Bumbers ~~
 		// Turns Robot Slightly Left if Right bumper is pressed
 		// if (RobotMap.xboxController.getRawButton(5))
 		// RobotMap.robotDrive.drive(1, -.5);
@@ -275,6 +289,7 @@ public class Robot extends IterativeRobot {
 		// else if (RobotMap.xboxController.getRawButton(6))
 		// RobotMap.robotDrive.drive(1, .5);
 
+		// ~~ Joystick Drive ~~
 		// Y Axis of Left joystick controls the Left wheels
 		// Y Axis of Right joystick controls the Right wheels
 		else
@@ -296,29 +311,18 @@ public class Robot extends IterativeRobot {
 
 		// ----- Shooter Code -----
 
+		if (RobotMap.ballShotSwitch.get()) {
+			shooterAdditionalVelocityCounter = shooterAdditionalVelocity;
+			shooterHoldSteadySpeed = getShooterHoldSteadySpeed() * shooterAdditionalVelocityMultiplier;
+		}
+		
 		// Toggle Hold Steady Mode
 		if (RobotMap.xboxController.getRawButton(3)) {
 			isShooterHoldSteady = !isShooterHoldSteady;
 
 			// Hold Steady Code
 			if (isShooterHoldSteady) {
-
-				// Set the speed at which to hold the shooter motor at (%)
-
-				// Y-Button held and Trigger pressed; Set hold speed to reverse
-				// trigger speed
-				if (RobotMap.xboxController.getRawAxis(2) != 0 && RobotMap.xboxController.getRawButton(4))
-					shooterHoldSteadySpeed = DEFAULT_MIN_SHOOTER_SPEED + RobotMap.xboxController.getRawAxis(3) * 0.45;
-				// Y-Button held; Set hold speed to reverse default minimum
-				// speed
-				else if (RobotMap.xboxController.getRawButton(4))
-					shooterHoldSteadySpeed = DEFAULT_MIN_SHOOTER_SPEED;
-				// Trigger pressed; Set hold speed to forward trigger speed
-				else if (RobotMap.xboxController.getRawAxis(2) != 0)
-					shooterHoldSteadySpeed = DEFAULT_MIN_SHOOTER_SPEED + RobotMap.xboxController.getRawAxis(3) * 0.45;
-				// Set hold speed to forward default minimum speed
-				else
-					shooterHoldSteadySpeed = -DEFAULT_MIN_SHOOTER_SPEED;
+				shooterHoldSteadySpeed = getShooterHoldSteadySpeed();
 			}
 		}
 
@@ -336,7 +340,32 @@ public class Robot extends IterativeRobot {
 		// Stop the motor
 		else
 			RobotMap.shooterMotor.set(0);
+		
+		if (shooterAdditionalVelocityCounter > 0) {
+			RobotMap.shooterMotor.set(shooterHoldSteadySpeed);
+		}
 	}
+	
+	// Get the correct hold steady speed
+	private double getShooterHoldSteadySpeed() {
+		// Set the speed at which to hold the shooter motor at (%)
+
+		// Y-Button held and Trigger pressed; Set hold speed to reverse
+		// trigger speed
+		if (RobotMap.xboxController.getRawAxis(2) != 0 && RobotMap.xboxController.getRawButton(4))
+			return DEFAULT_MIN_SHOOTER_SPEED + RobotMap.xboxController.getRawAxis(3) * 0.45;
+		// Y-Button held; Set hold speed to reverse default minimum
+		// speed
+		else if (RobotMap.xboxController.getRawButton(4))
+			return DEFAULT_MIN_SHOOTER_SPEED;
+		// Trigger pressed; Set hold speed to forward trigger speed
+		else if (RobotMap.xboxController.getRawAxis(2) != 0)
+			return DEFAULT_MIN_SHOOTER_SPEED + RobotMap.xboxController.getRawAxis(3) * 0.45;
+		// Set hold speed to forward default minimum speed
+		else
+			return -DEFAULT_MIN_SHOOTER_SPEED;
+	}
+
 	/**
 	 * This function is called periodically during test mode
 	 */
