@@ -29,8 +29,10 @@ import org.usfirst.frc.team2606.robot.commands.AutonomousDriveForward;
  */
 public class Robot extends IterativeRobot {
 
+	// Autonomous Routine Command Chooser and Counters
 	public static int autonomousLoopCounter;
 	public static Command autonomousCommand;
+	private static SendableChooser autonomousRoutinePicker;
 
 	// Default D-Pad Control Drive Speed 0 - 100%
 	private static double DEFAULT_DPAD_SPEED;
@@ -59,8 +61,6 @@ public class Robot extends IterativeRobot {
 	
 	private static final boolean ENABLE_VISION = false;
 
-	SendableChooser<Command> autonomousRoutinePicker = new SendableChooser<>();
-
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
@@ -68,6 +68,7 @@ public class Robot extends IterativeRobot {
 	@Override
 	public void robotInit() {
 		// Create Commands For Different Autonomous Routines
+		autonomousRoutinePicker = new SendableChooser<>();
 		autonomousRoutinePicker.addDefault("Drive Forward & Stop", new AutonomousDriveForward());
 		autonomousRoutinePicker.addObject("Test 1", new AutonomousDriveForward());
 		autonomousRoutinePicker.addObject("Test 2", new AutonomousDriveForward());
@@ -83,7 +84,7 @@ public class Robot extends IterativeRobot {
 		// Shooter Additional Velocity After Firing
 		shooterAdditionalVelocity = 30;
 		shooterAdditionalVelocityCounter = 0;
-		shooterAdditionalVelocityMultiplier = 0.3;
+		shooterAdditionalVelocityMultiplier = 0.25;
 		
 		// Vision Code
 		if (ENABLE_VISION) {
@@ -174,7 +175,7 @@ public class Robot extends IterativeRobot {
 	 */
 	@Override
 	public void autonomousInit() {
-		autonomousCommand = autonomousRoutinePicker.getSelected();
+		autonomousCommand = (Command) autonomousRoutinePicker.getSelected();
 		autonomousLoopCounter = 0; // Set The Loop Counter = 0
 
 		/*
